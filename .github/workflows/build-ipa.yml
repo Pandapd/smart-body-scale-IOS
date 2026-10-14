@@ -45,7 +45,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-          APP_PATH="$DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
+          # iOS device builds are emitted under the Release-iphoneos directory.
+          APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/$APP_NAME.app"
           test -d "$APP_PATH"
 
           # A standard IPA is a zip archive with the app inside Payload/.
