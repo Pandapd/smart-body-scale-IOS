@@ -563,7 +563,7 @@ extension ScaleManager: @preconcurrency CBCentralManagerDelegate, @preconcurrenc
         
         log("[BLE] Discovered: \(name) (\(peripheral.identifier.uuidString)), RSSI: \(RSSI), matches: \(matchesPrefix), isAFU: \(isAFU)")
         
-        guard matchesPrefix, isAFU else { return }
+        guard matchesPrefix || isAFU else { return }
         
         let discoveredMac = Self.macAddress(from: manufacturerData)
         log("[BLE] Discovered scale MAC: \(discoveredMac ?? "nil")")
@@ -662,13 +662,30 @@ extension ScaleManager: @preconcurrency CBCentralManagerDelegate, @preconcurrenc
     }
     
     private static func isAFUAdvertisement(_ data: Data?) -> Bool {
-        guard let data, data.count >= 7 else { return false }
-        return data[0] == 0xAC
+        guard let data = data, !data.isEmpty else { return false }
+        // 允许直接以 0xAC 开头，或包含 0xAC 标识头
+        if data.count >= 7 && data[0] == 0xAC {
+            return true
+        }
+        // 部分固件的Manufacturer Data前两个字节是蓝牙联盟厂商ID，随后才是0xAC
+        if data.count >= 9 && data[2] == 0xAC {
+            return true
+        }
+        return false
     }
     
     private static func macAddress(from manufacturerData: Data?) -> String? {
-        guard let manufacturerData, manufacturerData.count >= 7, manufacturerData[0] == 0xAC else { return nil }
-        let macBytes = manufacturerData[1...6]
+		guard let data = manufacturerData, data.count >= 7 else { return nil }
+        
+        let macBytes: Data.SubSequence
+        if data[0] == 0xAC {
+            macBytes = data[1...6]
+        } else if data.count >= 9 && data[2] == 0xAC {
+            macBytes = data[3...8]
+        } else {
+            return nil
+        }
+        
         return macBytes.map { String(format: "%02X", $0) }.joined(separator: ":")
     }
     
