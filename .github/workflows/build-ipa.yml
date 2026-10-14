@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload IPA artifact
         # Open the completed run in GitHub Actions to download the IPA on Windows.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unsigned-ios-ipa
           path: "体脂秤.ipa"
