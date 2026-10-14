@@ -1,0 +1,63 @@
+name: Build unsigned iOS IPA
+
+on:
+  # Build every push and pull request, or start a run from the Actions tab.
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    # The project uses Xcode project format 77, which requires a recent Xcode.
+    # macos-26 includes Xcode 26 and can build apps targeting iOS 15.
+    runs-on: macos-26
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app without an Apple signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT="体脂秤.xcodeproj"
+          SCHEME="体脂秤"
+          APP_NAME="体脂秤"
+          DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+
+          # Set the deployment target explicitly and disable certificate signing.
+          # The resulting app is unsigned and needs TrollStore or a signing tool.
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+          APP_PATH="$DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
+          test -d "$APP_PATH"
+
+          # A standard IPA is a zip archive with the app inside Payload/.
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$APP_PATH" "$RUNNER_TEMP/ipa/Payload/$APP_NAME.app"
+          (cd "$RUNNER_TEMP/ipa" && /usr/bin/zip -qry "$GITHUB_WORKSPACE/$APP_NAME.ipa" Payload)
+
+      - name: Upload IPA artifact
+        # Open the completed run in GitHub Actions to download the IPA on Windows.
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ios-ipa
+          path: "体脂秤.ipa"
+          if-no-files-found: error
+          retention-days: 14

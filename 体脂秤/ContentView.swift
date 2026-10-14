@@ -80,7 +80,7 @@ struct DashboardView: View {
     @EnvironmentObject private var profile: UserProfile
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack(spacing: 12) {
                 weightCard
                 
@@ -97,7 +97,7 @@ struct DashboardView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { scale.startScan() } label: {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                     }
@@ -193,7 +193,7 @@ struct MetricTile: View {
 struct HistoryView: View {
     @EnvironmentObject private var scale: ScaleManager
     var body: some View {
-        NavigationStack {
+        NavigationView {
             List {
                 if scale.history.isEmpty { EmptyStateView(title: "还没有测量记录", icon: "calendar.badge.clock", message: "完成首次测量后，记录将保存在这里。") }
                 ForEach(scale.history) { item in
@@ -297,7 +297,7 @@ struct PairingView: View {
     @AppStorage("afu.hasPairedScale") private var hasPairedScale = false
     
     var body: some View {
-        NavigationStack {
+        NavigationView {
             List {
                 Section {
                     VStack(spacing: 12) {
@@ -315,7 +315,7 @@ struct PairingView: View {
             }
             .navigationTitle("设备配对")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("跳过") { hasPairedScale = true }
                 }
             }
@@ -330,7 +330,7 @@ struct ProfileView: View {
     @AppStorage("afu.hasPairedScale") private var hasPairedScale = false
     @State private var showingAddMember = false
     var body: some View {
-        NavigationStack { Form {
+        NavigationView { Form {
             Section("我的设备") {
                 HStack { Image(systemName: "scalemass").foregroundStyle(.teal); VStack(alignment: .leading) { Text(scale.deviceName ?? "AFU Welland 体脂秤"); Text(scale.connectionState.title).font(.caption).foregroundStyle(.secondary) }; Spacer(); Circle().fill(scale.connectionState.color).frame(width: 9, height: 9) }
                 Button { scale.startScan() } label: { Label("重新连接", systemImage: "arrow.clockwise") }
@@ -380,7 +380,7 @@ struct AddFamilyMemberView: View {
         self.referenceWeight = referenceWeight ?? 0
     }
     var body: some View {
-        NavigationStack { Form {
+        NavigationView { Form {
             TextField("称呼", text: $name)
             Picker("性别", selection: $sex) { Text("女").tag(Sex.female); Text("男").tag(Sex.male) }
             DatePicker("出生日期", selection: $birthDate, displayedComponents: .date)
