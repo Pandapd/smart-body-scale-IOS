@@ -111,16 +111,14 @@ struct DashboardView: View {
             // Status bar inside card
             HStack {
                 Label(scale.connectionState.title, systemImage: scale.connectionState.icon)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(scale.connectionState.color)
                 Spacer()
                 if scale.isMeasuring {
                     ProgressView().tint(.teal)
                 } else if scale.impedance > 0 {
                     Label("\(Int(scale.impedance)) Ω", systemImage: "bolt.heart")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.teal)
                 }
             }
@@ -236,8 +234,7 @@ struct MeasurementDetailView: View {
                     Spacer()
                     if measurement.impedance > 0 {
                         Label("\(Int(measurement.impedance)) Ω", systemImage: "bolt.heart")
-                            .font(.caption)
-                            .fontWeight(.semibold)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(.teal)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
