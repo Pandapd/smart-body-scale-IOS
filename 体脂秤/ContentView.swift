@@ -177,6 +177,51 @@ struct EmptyStateView: View {
     }
 }
 
+struct CustomLineChartView: View {
+    let dataPoints: [Double]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            if dataPoints.count > 1, let maxVal = dataPoints.max(), let minVal = dataPoints.min() {
+                // 避免最大值和最小值相等时出现除数为0
+                let range = maxVal == minVal ? 1.0 : (maxVal - minVal)
+                let stepX = geometry.size.width / CGFloat(dataPoints.count - 1)
+                ZStack {
+                    // 绘制折线
+                    Path { path in
+                        for (index, dataPoint) in dataPoints.enumerated() {
+                            let x = CGFloat(index) * stepX
+                            let y = geometry.size.height - CGFloat((dataPoint - minVal) / range) * geometry.size.height * 0.8 - geometry.size.height * 0.1
+                            
+                            if index == 0 {
+                                path.move(to: CGPoint(x: x, y: y))
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+                    }
+                    .stroke(.teal, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    
+                    // 显示首尾数值
+                    if let first = dataPoints.first, let last = dataPoints.last {
+                        Text(String(format: "%.1f", first))
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .position(x: 15, y: geometry.size.height - CGFloat((first - minVal) / range) * geometry.size.height * 0.8 - geometry.size.height * 0.1 - 15)
+                        
+                        Text(String(format: "%.1f", last))
+                            .font(.caption2.weight(.bold)).foregroundStyle(.teal)
+                            .position(x: geometry.size.width - 15, y: geometry.size.height - CGFloat((last - minVal) / range) * geometry.size.height * 0.8 - geometry.size.height * 0.1 - 15)
+                    }
+                }
+            } else if dataPoints.count == 1 {
+                Text("数据不足，无法绘制趋势").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Text("暂无数据").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}
+
 struct MetricTile: View {
     let title: String; let valueString: String; let icon: String
     var body: some View {
@@ -190,27 +235,100 @@ struct MetricTile: View {
 
 struct HistoryView: View {
     @EnvironmentObject private var scale: ScaleManager
+    @State private var selectedMetric: ChartMetric = .weight
+    @State private var selectedTimeRange: TimeRange = .all
+    
+    // 根据选择的时间范围过滤数据，并按时间正序排列（为了画图从左到右）
+    var filteredHistory: [BodyMeasurement] {
+        let now = Date()
+        let startDate: Date?
+        switch selectedTimeRange {
+        case .week: startDate = Calendar.current.date(byAdding: .day, value: -7, to: now)
+        case .month: startDate = Calendar.current.date(byAdding: .month, value: -1, to: now)
+        case .quarter: startDate = Calendar.current.date(byAdding: .month, value: -3, to: now)
+        case .all: startDate = nil
+        }
+        
+        var filtered = scale.history
+        if let start = startDate {
+            filtered = filtered.filter { $0.date >= start }
+        }
+        // 图表需要按时间从早到晚排列
+        return filtered.sorted(by: { $0.date < $1.date })
+    }
+    
+    // 提取选中指标的数值数组供图表使用
+    var chartData: [Double] {
+        filteredHistory.map { measurement in
+            switch selectedMetric {
+            case .weight: return measurement.weight
+            case .bmi: return measurement.bmi
+            case .bodyFat: return measurement.bodyFat
+            case .muscle: return measurement.muscle
+            }
+        }
+    }
+
     var body: some View {
         NavigationView {
-            List {
-                if scale.history.isEmpty { EmptyStateView(title: "还没有测量记录", icon: "calendar.badge.clock", message: "完成首次测量后，记录将保存在这里。") }
-                ForEach(scale.history) { item in
-                    NavigationLink(destination: MeasurementDetailView(measurement: item)) {
+            VStack(spacing: 0) {
+                // 如果有历史记录，则显示图表区域
+                if !scale.history.isEmpty {
+                    VStack(spacing: 12) {
                         HStack {
-                            VStack(alignment: .leading) {
-                                Text(item.memberName ?? "本人").fontWeight(.semibold)
-                                Text(item.date, format: .dateTime.year().month().day().hour().minute())
-                                Text("BMI \(item.bmi, specifier: "%.2f") · 体脂 \(item.bodyFat, specifier: "%.1f")%")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            Picker("指标", selection: $selectedMetric) {
+                                ForEach(ChartMetric.allCases, id: \.self) { metric in Text(metric.rawValue).tag(metric) }
+                            }.pickerStyle(.segmented)
+                            
+                            Picker("时间", selection: $selectedTimeRange) {
+                                ForEach(TimeRange.allCases, id: \.self) { range in Text(range.rawValue).tag(range) }
+                            }.pickerStyle(.segmented)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 10)
+                        
+                        CustomLineChartView(dataPoints: chartData)
+                            .frame(height: 120)
+                            .padding(.horizontal)
+                            .padding(.bottom, 10)
+                    }
+                    .background(Color(.systemGroupedBackground))
+                }
+                
+                List {
+                    if scale.history.isEmpty { 
+                        EmptyStateView(title: "还没有测量记录", icon: "calendar.badge.clock", message: "完成首次测量后，记录将保存在这里。") 
+                    }
+                    // 正序数组反转
+                    ForEach(filteredHistory.reversed()) { item in
+                        NavigationLink(destination: MeasurementDetailView(measurement: item)) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(item.memberName ?? "本人").fontWeight(.semibold)
+                                    Text(item.date, format: .dateTime.year().month().day().hour().minute())
+                                    Text("BMI \(item.bmi, specifier: "%.2f") · 体脂 \(item.bodyFat, specifier: "%.1f")%")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(item.weight, specifier: "%.2f") kg")
+                                    .fontWeight(.semibold)
                             }
-                            Spacer()
-                            Text("\(item.weight, specifier: "%.2f") kg")
-                                .fontWeight(.semibold)
                         }
                     }
-                }.onDelete { scale.removeHistory(at: $0) }
-            }.navigationTitle("测量历史")
+                    .onDelete { indexSet in
+                        // 处理过滤后的删除映射逻辑
+                        let itemsToDelete = indexSet.map { filteredHistory.reversed()[$0] }
+                        for item in itemsToDelete {
+                            if let rawIndex = scale.history.firstIndex(where: { $0.id == item.id }) {
+                                scale.removeHistory(at: IndexSet(integer: rawIndex))
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("测量历史")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -325,6 +443,7 @@ struct ProfileView: View {
     @EnvironmentObject private var profile: UserProfile
     @EnvironmentObject private var scale: ScaleManager
     @AppStorage("afu.hasPairedScale") private var hasPairedScale = false
+    @AppStorage("afu.showDebugLogs") private var showDebugLogs = false // 新增开关状态
     @State private var showingAddMember = false
     var body: some View {
         NavigationView { Form {
@@ -345,16 +464,22 @@ struct ProfileView: View {
             } footer: {
                 Text("测量完成后会按成员近期体重和参考体重自动归属记录。")
             }
-            Section("说明") { Text("所有测量记录仅保存在本机。体脂率为健康参考数据，不替代医疗诊断。") }
-            Section("调试日志") {
-                Button("清空日志", role: .destructive) { scale.clearDebugLogs() }
-                if scale.debugLogs.isEmpty {
-                    Text("暂无日志").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    ForEach(scale.debugLogs, id: \.self) { log in
-                        Text(log)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
+            Section("说明") { 
+                Text("所有测量记录仅保存在本机。体脂率为健康参考数据，不替代医疗诊断。")
+                Toggle("显示调试日志", isOn: $showDebugLogs) // 日志显示开关 
+            }
+
+            if showDebugLogs {
+                Section("调试日志") {
+                    Button("清空日志", role: .destructive) { scale.clearDebugLogs() }
+                    if scale.debugLogs.isEmpty {
+                        Text("暂无日志").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(scale.debugLogs, id: \.self) { log in
+                            Text(log)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
                     }
                 }
             }
@@ -846,4 +971,17 @@ struct AFUPacket {
     }
 }
 
+// 折线图维度
+enum ChartMetric: String, CaseIterable {
+    case weight = "体重"
+    case bmi = "BMI"
+    case bodyFat = "体脂率"
+    case muscle = "肌肉量"
+}
 
+enum TimeRange: String, CaseIterable {
+    case week = "近1周"
+    case month = "近1月"
+    case quarter = "近3月"
+    case all = "全部"
+}
